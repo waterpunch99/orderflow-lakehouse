@@ -1,0 +1,26 @@
+{
+  "app_name": "orderflow-lakehouse",
+  "catalog_name": "lakehouse",
+  "warehouse": "s3a://lakehouse/warehouse",
+  "checkpoint_base": "s3a://lakehouse/checkpoints",
+  "kafka": {
+    "bootstrap_servers": "kafka:9092",
+    "starting_offsets": "earliest",
+    "fail_on_data_loss": "false",
+    "cdc_topics": [
+      "cdc.public.customers",
+      "cdc.public.products",
+      "cdc.public.orders",
+      "cdc.public.order_items",
+      "cdc.public.payments",
+      "cdc.public.refunds"
+    ]
+  },
+  "s3": {
+    "endpoint": "http://minio:9000",
+    "access_key": "minioadmin",
+    "secret_key": "minioadmin",
+    "path_style_access": true,
+    "ssl_enabled": false
+  }
+}

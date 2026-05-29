@@ -1,0 +1,38 @@
+.env
+.env.local
+.env.*.local
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.DS_Store
+.idea/
+.vscode/
+
+.ivy2/
+logs/
+*.log
+tmp/
+temp/
+.tmp/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local Docker/runtime data if bind-mounted during experiments.
+data/
+volumes/
+minio-data/
+postgres-data/
+kafka-data/
+
+# Spark local artifacts.
+spark-events/
+metastore_db/
+derby.log
+
+# Local assistant/session metadata.
+.agents/
+.codex/

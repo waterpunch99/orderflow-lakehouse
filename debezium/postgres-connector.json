@@ -1,0 +1,30 @@
+{
+  "name": "orderflow-postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "plugin.name": "pgoutput",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "orderflow",
+    "database.password": "orderflow_pw",
+    "database.dbname": "orderflow",
+    "topic.prefix": "cdc",
+    "schema.include.list": "public",
+    "table.include.list": "public.customers,public.products,public.orders,public.order_items,public.payments,public.refunds",
+    "publication.name": "orderflow_publication",
+    "publication.autocreate.mode": "disabled",
+    "slot.name": "orderflow_cdc_slot",
+    "slot.drop.on.stop": "false",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "adaptive_time_microseconds",
+    "tombstones.on.delete": "false",
+    "provide.transaction.metadata": "true",
+    "include.schema.changes": "false",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}
