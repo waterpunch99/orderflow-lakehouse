@@ -1,44 +1,42 @@
 # Runbook
 
-This runbook covers the local runtime, replay flow, validation flow, and recovery entry points for the complete STEP 0 through STEP 11 project.
-
-## STEP 1 Local Infrastructure
+이 runbook은 STEP 0부터 STEP 11까지의 로컬 런타임, replay flow, validation flow, recovery entry point를 다룹니다.
 
 ## End-to-End Verification
 
-Create `.env` from the sample file if it does not exist:
+샘플 환경 파일 생성:
 
 ```bash
 cp .env.example .env
 ```
 
-Start services:
+서비스 시작:
 
 ```bash
 ./scripts/start.sh
 ```
 
-Register the Debezium connector:
+Debezium connector 등록:
 
 ```bash
 ./scripts/register-connector.sh
 ```
 
-Run the full verification flow:
+전체 검증 flow 실행:
 
 ```bash
 ./scripts/verify-all.sh demo-001
 ```
 
-The wrapper runs connector status check, source simulator, Bronze ingestion, Silver replay, Gold rebuild, and quality checks.
+Wrapper는 connector 상태 확인, source simulator, Bronze ingestion, Silver replay, Gold rebuild, quality check를 순서대로 실행합니다.
 
-Expected final quality summary:
+예상 최종 quality summary:
 
 ```text
 quality_check_summary total=24 failed=0
 ```
 
-Equivalent manual sequence:
+동일한 수동 실행 순서:
 
 ```bash
 ./scripts/check-connector.sh
@@ -49,17 +47,19 @@ Equivalent manual sequence:
 ./scripts/run-quality-checks.sh
 ```
 
+## STEP 1 Local Infrastructure
+
 ### Start Services
 
 ```bash
 ./scripts/start.sh
 ```
 
-This starts:
+시작되는 서비스:
 
 - PostgreSQL
 - Kafka
-- Kafka Connect with Debezium plugin
+- Debezium plugin이 포함된 Kafka Connect
 - Spark master and worker
 - MinIO
 - MinIO bucket initialization
@@ -77,7 +77,7 @@ This starts:
 ./scripts/reset.sh
 ```
 
-This removes containers and named volumes. PostgreSQL data, Kafka data, and MinIO object data will be deleted.
+Container와 named volume을 제거합니다. PostgreSQL data, Kafka data, MinIO object data가 삭제됩니다.
 
 ### Create MinIO Bucket Again
 
@@ -85,13 +85,13 @@ This removes containers and named volumes. PostgreSQL data, Kafka data, and MinI
 ./scripts/create-minio-bucket.sh
 ```
 
-The bucket init process creates the bucket from `.env`:
+Bucket init process는 `.env`에서 bucket 값을 읽습니다.
 
 ```text
 S3_BUCKET=lakehouse
 ```
 
-The expected Iceberg warehouse is:
+예상 Iceberg warehouse:
 
 ```text
 ICEBERG_WAREHOUSE=s3a://lakehouse/warehouse
@@ -105,19 +105,19 @@ ICEBERG_WAREHOUSE=s3a://lakehouse/warehouse
 docker compose exec postgres psql -U orderflow -d orderflow -c "select version();"
 ```
 
-Host access uses the port configured in `.env`:
+Host access port:
 
 ```text
 POSTGRES_PORT=15432
 ```
 
-Logical replication settings are enabled at container startup for later Debezium use:
+Logical replication 확인:
 
 ```bash
 docker compose exec postgres psql -U orderflow -d orderflow -c "show wal_level;"
 ```
 
-Expected value:
+예상 값:
 
 ```text
 logical
@@ -135,7 +135,7 @@ docker compose exec kafka kafka-topics --bootstrap-server kafka:9092 --list
 curl -fsS http://localhost:8083/connectors
 ```
 
-At STEP 1 this should return an empty connector list. Connector registration is handled in STEP 4.
+Connector 등록은 STEP 4에서 수행합니다.
 
 ### MinIO
 
@@ -145,7 +145,7 @@ Console:
 http://localhost:9001
 ```
 
-Credentials are loaded from `.env`:
+Credential은 `.env`에서 읽습니다.
 
 ```text
 MINIO_ROOT_USER=minioadmin
@@ -172,7 +172,7 @@ Spark worker UI:
 http://localhost:8081
 ```
 
-S3 and Iceberg values are passed to Spark containers as environment variables:
+Spark container로 전달되는 S3/Iceberg 값:
 
 ```text
 S3_ENDPOINT=http://minio:9000
@@ -182,8 +182,6 @@ ICEBERG_WAREHOUSE=s3a://lakehouse/warehouse
 SPARK_CHECKPOINT_BASE=s3a://lakehouse/checkpoints
 ```
 
-Spark job-level package dependencies and SparkSession configuration are implemented in STEP 6.
-
 ### Kafka UI
 
 ```text
@@ -192,27 +190,25 @@ http://localhost:8088
 
 ## MinIO vs AWS S3
 
-The local runtime uses MinIO with path-style access and a Docker-network endpoint. When moving to AWS S3, update `.env` and Spark S3A settings for the AWS endpoint, credentials or IAM role, TLS, and bucket name. See `docs/object_storage_design.md`.
+로컬 런타임은 path-style access와 Docker-network endpoint를 사용하는 MinIO 기반입니다. AWS S3로 이동할 때는 `.env`와 Spark S3A 설정에서 endpoint, credential 또는 IAM role, TLS, bucket name을 조정합니다. 자세한 내용은 `docs/object_storage_design.md`를 참고합니다.
 
 ## STEP 3 Source Transaction Simulator
 
-The simulator uses only the Python standard library and the running Docker Compose PostgreSQL service.
-
-Run the simulator:
+Simulator 실행:
 
 ```bash
 ./scripts/run-simulator.sh
 ```
 
-Run with a stable run id:
+고정 run id로 실행:
 
 ```bash
 ./scripts/run-simulator.sh --run-id demo-001
 ```
 
-The simulator writes only to PostgreSQL. It does not produce Kafka messages directly.
+Simulator는 PostgreSQL에만 write하며 Kafka message를 직접 생성하지 않습니다.
 
-Basic verification after a run:
+실행 후 주문 상태 확인:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "
@@ -222,7 +218,7 @@ group by order_status
 order by order_status;"
 ```
 
-Check payment state changes:
+결제 상태 확인:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "
@@ -232,7 +228,7 @@ group by payment_status
 order by payment_status;"
 ```
 
-Check generated refund records:
+환불 상태 확인:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "
@@ -244,21 +240,21 @@ order by refund_status;"
 
 ## STEP 4 Debezium Connector
 
-Register or update the PostgreSQL connector:
+PostgreSQL connector 등록 또는 업데이트:
 
 ```bash
 ./scripts/register-connector.sh
 ```
 
-Check connector status:
+Connector 상태 확인:
 
 ```bash
 ./scripts/check-connector.sh
 ```
 
-The connector reads the six source tables from `orderflow_publication` and emits table CDC events with topic prefix `cdc`.
+Connector는 `orderflow_publication`의 여섯 source table을 읽고 `cdc` prefix의 table CDC event를 발행합니다.
 
-Expected table topics after snapshot or new source transactions:
+예상 table topic:
 
 ```text
 cdc.public.customers
@@ -269,72 +265,70 @@ cdc.public.payments
 cdc.public.refunds
 ```
 
-The connector disables tombstone records:
+Connector는 tombstone record를 비활성화합니다.
 
 ```text
 tombstones.on.delete=false
 ```
 
-Delete events are still emitted as Debezium `op = d` records. Downstream Silver processing converts them to soft deletes.
+Delete 이벤트는 여전히 Debezium `op = d` record로 발행됩니다. Downstream Silver는 이를 soft delete로 변환합니다.
 
 ## STEP 5 Kafka Topics and Samples
 
-List Kafka topics:
+Topic 목록:
 
 ```bash
 ./scripts/list-topics.sh
 ```
 
-Consume sample messages from a CDC topic:
+CDC topic sample 소비:
 
 ```bash
 ./scripts/consume-sample.sh cdc.public.orders 5
 ```
 
-Generate a fresh source change and consume it:
+새 source change 생성 후 확인:
 
 ```bash
 ./scripts/run-simulator.sh --run-id sample-001
 ./scripts/consume-sample.sh cdc.public.payments 5
 ```
 
-The CDC event contract is documented in `docs/cdc_event_contract.md`. Topic names and metadata rules are documented in `docs/kafka_topics.md`.
+CDC event contract는 `docs/cdc_event_contract.md`, topic 이름과 metadata rule은 `docs/kafka_topics.md`에 문서화되어 있습니다.
 
 ## STEP 6 Spark Common Runtime
 
-Run the Spark smoke check:
+Spark smoke check:
 
 ```bash
 ./scripts/run-spark-job.sh
 ```
 
-The smoke check validates:
+검증 항목:
 
-- Spark can start through Docker Compose.
-- Iceberg Hadoop Catalog points to `s3a://lakehouse/warehouse`.
-- S3A settings point to MinIO.
-- Kafka source packages are available.
-- Kafka CDC topics can be read as a batch.
+- Spark가 Docker Compose를 통해 시작되는지
+- Iceberg Hadoop Catalog가 `s3a://lakehouse/warehouse`를 가리키는지
+- S3A 설정이 MinIO를 가리키는지
+- Kafka source package를 사용할 수 있는지
+- Kafka CDC topic을 batch로 읽을 수 있는지
 
-The default checkpoint base is:
+기본 checkpoint base:
 
 ```text
 s3a://lakehouse/checkpoints
 ```
 
-Spark package dependencies are supplied by `scripts/run-spark-job.sh`.
-
-The script uses `/tmp/.ivy2` as the Ivy cache path inside the Spark container so package resolution does not depend on the container home directory being writable.
+Spark package dependency는 `scripts/run-spark-job.sh`가 주입합니다. Script는 Spark container 안에서 `/tmp/.ivy2`를 Ivy cache path로 사용해 container home directory write 권한에 의존하지 않게 합니다.
 
 ## STEP 7 Bronze CDC Ingestion
 
-Run Bronze ingestion once for available Kafka CDC records:
+현재 Kafka CDC record를 Bronze로 1회 적재:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/bronze_ingestion/main.py --once
 ```
 
-The job creates the Bronze namespace and tables from:
+Job은 다음 DDL로 Bronze namespace와 table을 생성합니다.
 
 ```text
 iceberg/ddl/bronze_tables.sql
@@ -351,29 +345,29 @@ lakehouse.bronze.bronze_payments_cdc
 lakehouse.bronze.bronze_refunds_cdc
 ```
 
-The checkpoint path is:
+Checkpoint path:
 
 ```text
 s3a://lakehouse/checkpoints/bronze_ingestion
 ```
 
-Check Bronze row counts with Spark SQL:
+Bronze row count 확인:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/bronze_ingestion/check_counts.py
 ```
 
-The check reports row counts, distinct `event_id` counts, and null `event_id` counts per Bronze table. STEP 8 will add Silver-specific verification.
+Check job은 Bronze table별 row count, distinct `event_id` count, null `event_id` count를 보고합니다.
 
 ## STEP 8 Silver Current, History, and Quarantine
 
-Rebuild all Silver lifecycle tables from Bronze:
+Bronze에서 모든 Silver lifecycle table 재생성:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/silver_common/rebuild_all.py
 ```
 
-Rebuild one entity:
+Entity별 재생성:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/silver_orders/main.py
@@ -381,7 +375,7 @@ Rebuild one entity:
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/silver_refunds/main.py
 ```
 
-Check Silver counts:
+Silver count 확인:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/silver_common/check_counts.py
@@ -399,17 +393,25 @@ lakehouse.silver.silver_refunds_history
 lakehouse.silver.silver_quarantine_events
 ```
 
-The Silver jobs are rebuild jobs. They delete and recreate current/history rows from Bronze so the layer stays reproducible.
+Silver job은 rebuild job입니다. Bronze에서 current/history row를 삭제 후 재생성하므로 layer를 재현 가능하게 유지합니다.
+
+Incremental orders current upsert 예제:
+
+```bash
+./scripts/upsert-silver-orders.sh --once
+```
+
+이 예제는 Iceberg `MERGE INTO` 기반 운영형 upsert pattern을 보여주며, 전체 검증 경로의 deterministic rebuild를 대체하지 않습니다.
 
 ## STEP 9 Gold Marts
 
-Rebuild Gold marts from Silver current tables:
+Silver current table에서 Gold mart 재생성:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/gold_marts/rebuild.py
 ```
 
-Check Gold counts:
+Gold count 확인:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/gold_marts/check_counts.py
@@ -424,19 +426,19 @@ lakehouse.gold.gold_payment_failure_summary
 lakehouse.gold.gold_refund_summary
 ```
 
-The Gold jobs are rebuild jobs. They delete existing Gold rows and insert deterministic aggregates from Silver current tables.
+Gold job은 기존 row를 삭제하고 Silver current table에서 결정적 aggregate를 insert하는 rebuild job입니다.
 
 ## STEP 10 Data Quality Checks
 
-Run all source, Silver, and Gold validation checks:
+Source, Silver, Gold validation check 실행:
 
 ```bash
 ./scripts/run-quality-checks.sh
 ```
 
-The quality job reads PostgreSQL source tables through Spark JDBC and reads Iceberg tables through Spark SQL. The PostgreSQL JDBC package is added by the wrapper script.
+Quality job은 Spark JDBC로 PostgreSQL source table을 읽고, Spark SQL로 Iceberg table을 읽습니다. PostgreSQL JDBC package는 wrapper script가 추가합니다.
 
-Before running quality checks, rebuild Silver and Gold if source CDC data changed:
+Source CDC data가 바뀐 뒤 quality check 전에는 Silver와 Gold를 재생성합니다.
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/silver_common/rebuild_all.py
@@ -444,23 +446,23 @@ Before running quality checks, rebuild Silver and Gold if source CDC data change
 ./scripts/run-quality-checks.sh
 ```
 
-Rules are documented in `docs/data_quality_rules.md`.
+Rule은 `docs/data_quality_rules.md`에 문서화되어 있습니다.
 
 ## STEP 11 Reprocessing and Recovery
 
-Replay Silver from Bronze:
+Bronze에서 Silver replay:
 
 ```bash
 ./scripts/replay-silver.sh
 ```
 
-Rebuild Gold from Silver:
+Silver에서 Gold rebuild:
 
 ```bash
 ./scripts/rebuild-gold.sh
 ```
 
-Recommended validation sequence after new CDC data is ingested:
+새 CDC data ingestion 이후 권장 검증 순서:
 
 ```bash
 ./scripts/run-spark-job.sh /opt/orderflow/spark/jobs/bronze_ingestion/main.py --once
@@ -469,7 +471,7 @@ Recommended validation sequence after new CDC data is ingested:
 ./scripts/run-quality-checks.sh
 ```
 
-Operational documents:
+운영 문서:
 
 - `docs/reprocessing_strategy.md`
 - `docs/failure_recovery.md`
@@ -483,4 +485,4 @@ Local full reset:
 ./scripts/start.sh
 ```
 
-This deletes Docker named volumes, including PostgreSQL, Kafka, and MinIO object data. Use it only when intentionally resetting the local portfolio environment.
+이 명령은 PostgreSQL, Kafka, MinIO object data를 포함한 Docker named volume을 삭제합니다. 로컬 포트폴리오 환경을 의도적으로 초기화할 때만 사용합니다.

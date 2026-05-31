@@ -1,10 +1,10 @@
-# Architecture
+# 아키텍처
 
-## Purpose
+## 목적
 
-This project demonstrates a CDC-based lakehouse pipeline for order, payment, and refund data. The system captures row-level changes from PostgreSQL and builds analytical Iceberg tables through Bronze, Silver, and Gold layers.
+이 프로젝트는 주문, 결제, 환불 데이터를 대상으로 CDC 기반 Lakehouse 파이프라인을 구현합니다. PostgreSQL의 행 단위 변경을 캡처하고, Bronze, Silver, Gold 레이어를 거쳐 분석용 Apache Iceberg 테이블을 생성합니다.
 
-## Logical Flow
+## 논리 흐름
 
 ```text
 Source transactions
@@ -16,73 +16,73 @@ Source transactions
   -> S3-compatible object storage
 ```
 
-## Components
+## 구성 요소
 
-| Area | Technology | Responsibility |
+| 영역 | 기술 | 역할 |
 | --- | --- | --- |
-| Source DB | PostgreSQL | Owns transactional order, payment, and refund tables |
-| CDC | Debezium PostgreSQL Connector | Reads PostgreSQL WAL and publishes CDC events |
-| Broker | Kafka | Stores CDC event streams by source table |
-| Processing | Spark Structured Streaming | Reads CDC topics and writes Lakehouse tables |
-| Table Format | Apache Iceberg | Provides table metadata, snapshots, schema evolution, and SQL writes |
-| Catalog | Iceberg Hadoop Catalog | Stores Iceberg table metadata under the warehouse path |
-| Object Storage | MinIO locally, AWS S3 later | Stores Iceberg metadata and Parquet data files |
+| Source DB | PostgreSQL | 주문, 결제, 환불 트랜잭션 테이블 보관 |
+| CDC | Debezium PostgreSQL Connector | PostgreSQL WAL을 읽어 CDC 이벤트 발행 |
+| Broker | Kafka | 원천 테이블별 CDC 이벤트 스트림 저장 |
+| Processing | Spark Structured Streaming | CDC topic을 읽어 Lakehouse 테이블 작성 |
+| Table Format | Apache Iceberg | 테이블 메타데이터, 스냅샷, 스키마 진화, SQL 쓰기 제공 |
+| Catalog | Iceberg Hadoop Catalog | warehouse 경로 아래 Iceberg 메타데이터 저장 |
+| Object Storage | MinIO local, AWS S3 later | Iceberg metadata 및 Parquet data file 저장 |
 
-## Local Runtime
+## 로컬 런타임
 
-Docker Compose will be used in later steps to run:
+Docker Compose는 다음 서비스를 실행합니다.
 
 - PostgreSQL
 - Kafka
-- Kafka Connect with Debezium plugin
+- Debezium plugin이 포함된 Kafka Connect
 - Spark
 - MinIO
 - MinIO bucket initialization
-- Optional Kafka UI
+- 선택 사항인 Kafka UI
 
-## Storage Architecture
+## 스토리지 아키텍처
 
-The Lakehouse storage target is S3-compatible object storage. In local development, MinIO provides the S3 API. Spark and Iceberg access storage through Hadoop S3A.
+Lakehouse 저장소의 대상은 S3 호환 오브젝트 스토리지입니다. 로컬 개발에서는 MinIO가 S3 API를 제공합니다. Spark와 Iceberg는 Hadoop S3A로 저장소에 접근합니다.
 
-Required warehouse path:
+필수 warehouse 경로:
 
 ```text
 s3a://lakehouse/warehouse
 ```
 
-Recommended checkpoint prefix:
+권장 체크포인트 prefix:
 
 ```text
 s3a://lakehouse/checkpoints
 ```
 
-If a later Spark job uses local volume checkpoints for development stability, the reason must be documented in the related runbook. Local checkpoints do not change the requirement that Iceberg table data and metadata live in S3-compatible object storage.
+개발 안정성을 위해 이후 Spark 잡에서 로컬 볼륨 체크포인트를 사용한다면, 해당 이유를 관련 runbook에 남겨야 합니다. 로컬 체크포인트를 쓰더라도 Iceberg 테이블 데이터와 메타데이터는 S3 호환 오브젝트 스토리지에 있어야 한다는 요구사항은 변하지 않습니다.
 
-## Data Flow by Layer
+## 레이어별 데이터 흐름
 
 ### Bronze
 
-Bronze stores Debezium CDC events as append-only records. It preserves the original event shape as much as practical, including key, before, after, source metadata, Kafka metadata, and operation type.
+Bronze는 Debezium CDC 이벤트를 append-only 레코드로 저장합니다. key, before, after, source metadata, Kafka metadata, operation type 등 원본 이벤트 형태를 가능한 한 보존합니다.
 
 ### Silver
 
-Silver tables are derived from Bronze and split into:
+Silver 테이블은 Bronze에서 파생되며 다음 그룹으로 나뉩니다.
 
-- current tables: latest state by primary key
-- history tables: change history
-- quarantine tables: stale or invalid events
+- current tables: primary key별 최신 상태
+- history tables: 변경 이력
+- quarantine tables: 오래되었거나 유효하지 않은 이벤트
 
-Silver applies deduplication, soft delete handling, freshness checks, and domain-oriented parsing.
+Silver는 deduplication, soft delete 처리, freshness 검사, 도메인 중심 파싱을 적용합니다.
 
 ### Gold
 
-Gold marts are derived from Silver and support analytics such as:
+Gold 마트는 Silver에서 파생되며 다음 분석을 지원합니다.
 
-- daily order and payment summary
-- order funnel conversion
-- payment failure summary
-- refund summary
+- 일별 주문 및 결제 요약
+- 주문 funnel conversion
+- 결제 실패 요약
+- 환불 요약
 
-## Rebuild Principle
+## 재생성 원칙
 
-Bronze is the immutable replay source. Silver and Gold should be rebuildable from Bronze by replaying CDC events and applying deterministic merge rules.
+Bronze는 불변 replay source입니다. Silver와 Gold는 Bronze의 CDC 이벤트를 재처리하고 결정적인 merge rule을 적용해 재생성할 수 있어야 합니다.

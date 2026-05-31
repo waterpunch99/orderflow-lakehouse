@@ -11,6 +11,7 @@ PostgreSQL 주문/결제/환불 원천 데이터의 변경 사항을 Debezium CD
 - Object storage: MinIO, `s3a://lakehouse/warehouse`
 - CDC 처리 원칙: `event_id` dedup, soft delete, stale event quarantine, replayable downstream tables
 - 운영 관점: replay script, quality check, failure recovery docs, monitoring metric definitions
+- CI: Python compile check, shell syntax check, script executable permission check
 
 ## 빠른 실행
 
@@ -153,6 +154,7 @@ Silver current table을 기반으로 분석용 mart를 생성합니다.
 - Debezium delete 이벤트는 Silver에서 `is_deleted = true`로 soft delete 처리합니다.
 - 중복 CDC 이벤트는 `event_id` 기준으로 제거합니다.
 - 이벤트 최신성은 `source_lsn`, `source_tx_id`, `event_ts`, Kafka offset을 고려합니다.
+- Kafka offset은 전역 순서가 아니라 같은 PK/partition 안에서만 tie-breaker로 사용합니다.
 - current table은 PK별 최신 상태를 저장합니다.
 - history table은 row-level 변경 이력을 보존합니다.
 - 오래된 이벤트는 stale event로 판단해 `silver_quarantine_events`에 분리합니다.
@@ -163,6 +165,7 @@ Silver current table을 기반으로 분석용 mart를 생성합니다.
 - Bronze는 Kafka CDC topic을 읽는 Spark Structured Streaming job으로 구현했습니다.
 - Silver와 Gold는 로컬 포트폴리오 환경에서 재처리 가능성을 명확히 보여주기 위해 deterministic rebuild job으로 구현했습니다.
 - 운영 환경에서는 Silver current table 갱신을 `foreachBatch`와 Iceberg `MERGE INTO` 기반 continuous upsert로 확장할 수 있습니다.
+- 구체적인 예시로 `spark/jobs/silver_orders/incremental_current.py`는 Bronze 주문 CDC를 `silver_orders_current`에 incremental upsert합니다.
 - 이 프로젝트는 MinIO를 기본 object storage로 사용하지만, S3A 설정과 warehouse path를 기준으로 AWS S3 전환이 가능하도록 문서화했습니다.
 - 모니터링은 실제 Prometheus/Grafana stack을 띄우기보다 `docs/monitoring_metrics.md`에 운영 지표를 정의하는 방식으로 범위를 제한했습니다.
 
@@ -224,6 +227,7 @@ CDC 및 원천 데이터:
 - [Reprocessing Strategy](docs/reprocessing_strategy.md)
 - [Failure Recovery](docs/failure_recovery.md)
 - [Monitoring Metrics](docs/monitoring_metrics.md)
+- [Demo Result](docs/demo_result.md)
 
 품질 검증:
 

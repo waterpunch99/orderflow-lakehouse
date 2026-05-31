@@ -1,10 +1,10 @@
-# State Transition Rules
+# 상태 전이 규칙
 
-State transition checks are domain validation rules used by the simulator, Silver processing, and data quality checks. They do not replace PostgreSQL constraints, but they define the expected business flow.
+상태 전이 검사는 simulator, Silver 처리, 데이터 품질 검사에서 사용하는 도메인 검증 규칙입니다. PostgreSQL constraint를 대체하지는 않지만 기대하는 비즈니스 흐름을 정의합니다.
 
 ## Order Status
 
-Recommended status values:
+권장 상태 값:
 
 - `CREATED`
 - `PENDING_PAYMENT`
@@ -13,7 +13,7 @@ Recommended status values:
 - `REFUND_REQUESTED`
 - `REFUNDED`
 
-Expected transitions:
+기대 전이:
 
 ```text
 CREATED -> PENDING_PAYMENT
@@ -23,11 +23,11 @@ PAID -> REFUND_REQUESTED
 REFUND_REQUESTED -> REFUNDED
 ```
 
-Invalid or suspicious transitions should be detectable by validation scripts or routed to quality reports in later steps.
+잘못되었거나 의심스러운 전이는 검증 스크립트에서 탐지하거나 이후 단계의 품질 리포트로 라우팅해야 합니다.
 
 ## Payment Status
 
-Recommended status values:
+권장 상태 값:
 
 - `REQUESTED`
 - `APPROVED`
@@ -35,7 +35,7 @@ Recommended status values:
 - `FAILED`
 - `CANCELLED`
 
-Expected transitions:
+기대 전이:
 
 ```text
 REQUESTED -> APPROVED
@@ -44,18 +44,18 @@ REQUESTED -> FAILED
 APPROVED -> CANCELLED
 ```
 
-A `PAID` order is expected to have at least one `CAPTURED` payment.
+`PAID` 주문은 최소 하나의 `CAPTURED` 결제를 가져야 합니다.
 
 ## Refund Status
 
-Recommended status values:
+권장 상태 값:
 
 - `REQUESTED`
 - `APPROVED`
 - `COMPLETED`
 - `REJECTED`
 
-Expected transitions:
+기대 전이:
 
 ```text
 REQUESTED -> APPROVED
@@ -63,27 +63,29 @@ APPROVED -> COMPLETED
 REQUESTED -> REJECTED
 ```
 
-A `REFUNDED` order is expected to have at least one `COMPLETED` refund.
+`REFUNDED` 주문은 최소 하나의 `COMPLETED` 환불을 가져야 합니다.
 
-## Delete Handling
+## Delete 처리
 
-Delete CDC events are not applied as physical deletes in Silver or Gold. They are represented with soft delete columns such as:
+Delete CDC 이벤트는 Silver나 Gold에서 물리 삭제로 적용하지 않습니다. 대신 다음과 같은 soft delete 컬럼으로 표현합니다.
 
 - `is_deleted`
 - `deleted_at`
 - `delete_event_id`
 
-This preserves auditability and makes downstream tables rebuildable.
+이 방식은 감사 가능성을 유지하고 하위 테이블을 재생성 가능하게 만듭니다.
 
-## Duplicate and Stale Event Handling
+## 중복 및 오래된 이벤트 처리
 
-Events are deduplicated by `event_id`.
+이벤트는 `event_id`로 deduplicate합니다.
 
-Freshness comparison should consider:
+Freshness 비교는 다음 값을 고려해야 합니다.
 
 - `source_lsn`
 - `source_tx_id`
 - `event_ts`
 - Kafka `offset`
 
-If an incoming event is older than the current row for the same primary key, it is treated as stale and written to quarantine instead of overwriting current state.
+동일 primary key의 현재 row보다 오래된 이벤트가 들어오면 current state를 덮어쓰지 않고 quarantine에 기록합니다.
+
+이 비교는 하나의 primary key 범위에 한정됩니다. Kafka offset은 동일 primary key와 동일 Kafka partition으로 범위가 제한된 뒤 마지막 tie-breaker로만 사용합니다. 서로 다른 partition의 offset은 전역 순서로 비교할 수 없습니다.

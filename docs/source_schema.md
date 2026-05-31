@@ -1,10 +1,10 @@
 # Source Schema
 
-STEP 2 defines the PostgreSQL source schema for CDC capture. The schema is intentionally transactional and normalized because Debezium should capture actual row changes from the source database.
+STEP 2는 CDC capture를 위한 PostgreSQL source schema를 정의합니다. Debezium이 실제 source database의 row change를 캡처해야 하므로 schema는 의도적으로 transactional하고 normalized한 형태입니다.
 
 ## Tables
 
-| Table | Primary Key | CDC Role |
+| Table | Primary Key | CDC 역할 |
 | --- | --- | --- |
 | `customers` | `customer_id` | Customer master data |
 | `products` | `product_id` | Product master data |
@@ -13,7 +13,7 @@ STEP 2 defines the PostgreSQL source schema for CDC capture. The schema is inten
 | `payments` | `payment_id` | Payment lifecycle state |
 | `refunds` | `refund_id` | Refund lifecycle state |
 
-Every CDC target table has a primary key.
+모든 CDC 대상 테이블은 primary key를 가집니다.
 
 ## Key Columns
 
@@ -92,20 +92,20 @@ Every CDC target table has a primary key.
 - `created_at`
 - `updated_at`
 
-## CDC Suitability
+## CDC 적합성
 
-The schema is prepared for Debezium PostgreSQL CDC with these choices:
+Schema는 Debezium PostgreSQL CDC에 맞게 다음 선택을 적용합니다.
 
-- All target tables have stable primary keys.
-- `updated_at` is maintained by a PostgreSQL trigger on updates.
-- `REPLICA IDENTITY FULL` is enabled on all target tables so Debezium can capture full `before` values for updates and deletes.
-- `orderflow_publication` includes all six source tables for later connector use.
-- Status columns use check constraints to keep lifecycle values explicit.
-- Amount columns use numeric checks to catch invalid source data early.
+- 모든 target table은 안정적인 primary key를 가집니다.
+- `updated_at`은 update 시 PostgreSQL trigger로 관리합니다.
+- 모든 target table에 `REPLICA IDENTITY FULL`을 활성화해 Debezium이 update/delete의 전체 `before` 값을 캡처할 수 있게 합니다.
+- `orderflow_publication`은 connector 사용을 위해 여섯 개 source table을 모두 포함합니다.
+- Status column은 check constraint로 lifecycle 값을 명시적으로 제한합니다.
+- Amount column은 numeric check로 잘못된 source data를 조기에 잡습니다.
 
 ## Logical Replication
 
-Docker Compose starts PostgreSQL with logical replication settings:
+Docker Compose는 logical replication 설정으로 PostgreSQL을 시작합니다.
 
 ```text
 wal_level=logical
@@ -113,21 +113,21 @@ max_wal_senders=10
 max_replication_slots=10
 ```
 
-Verify:
+확인:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "show wal_level;"
 ```
 
-Expected:
+예상 값:
 
 ```text
 logical
 ```
 
-## Apply Schema Locally
+## 로컬 Schema 적용
 
-With the STEP 1 containers running:
+STEP 1 container가 실행 중일 때:
 
 ```bash
 docker compose cp postgres/init.sql postgres:/tmp/init.sql
@@ -136,17 +136,17 @@ docker compose exec -T postgres psql -U orderflow -d orderflow -f /tmp/init.sql
 docker compose exec -T postgres psql -U orderflow -d orderflow -f /tmp/seed.sql
 ```
 
-The schema script drops and recreates the six source tables. Use it only for local development reset.
+Schema script는 여섯 개 source table을 drop 후 재생성합니다. 로컬 개발 reset에만 사용합니다.
 
-## Basic Verification
+## 기본 검증
 
-List tables:
+Table 목록:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "\dt"
 ```
 
-Check row counts:
+Row count 확인:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "
@@ -159,7 +159,7 @@ union all select 'refunds', count(*) from refunds
 order by table_name;"
 ```
 
-Expected seed counts:
+예상 seed count:
 
 | Table | Count |
 | --- | ---: |
@@ -170,7 +170,7 @@ Expected seed counts:
 | `payments` | 3 |
 | `refunds` | 1 |
 
-Check publication:
+Publication 확인:
 
 ```bash
 docker compose exec -T postgres psql -U orderflow -d orderflow -c "

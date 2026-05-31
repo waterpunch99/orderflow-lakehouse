@@ -1,30 +1,30 @@
-# Data Quality Rules
+# 데이터 품질 규칙
 
-## Purpose
+## 목적
 
-STEP 10 adds a self-contained Python validation script for source-to-lakehouse quality checks. Great Expectations is not used. The job runs with Spark so Iceberg tables are queried through Spark SQL against the configured S3-compatible warehouse.
+STEP 10은 source-to-lakehouse 품질 검사를 위한 독립 Python validation script를 추가합니다. Great Expectations는 사용하지 않습니다. 검사는 Spark로 실행되며, Iceberg 테이블은 설정된 S3 호환 warehouse에 대해 Spark SQL로 조회합니다.
 
-Default warehouse:
+기본 warehouse:
 
 ```text
 s3a://lakehouse/warehouse
 ```
 
-## Execution
+## 실행
 
-Run all quality checks:
+전체 품질 검사:
 
 ```bash
 ./scripts/run-quality-checks.sh
 ```
 
-The script submits:
+스크립트는 다음 잡을 submit합니다.
 
 ```text
 /opt/orderflow/quality/reconciliation/run_quality_checks.py
 ```
 
-It adds the PostgreSQL JDBC driver to Spark packages and reads source tables from the Docker Compose PostgreSQL service.
+PostgreSQL JDBC driver를 Spark package에 추가하고 Docker Compose PostgreSQL 서비스에서 source table을 읽습니다.
 
 ## Source Checks
 
@@ -38,7 +38,7 @@ orders.total_amount = sum(order_items.item_amount)
 
 Scope: PostgreSQL source tables.
 
-Failure means source order totals are inconsistent with their line items.
+실패는 source order total과 line item 합계가 불일치한다는 뜻입니다.
 
 ### approved payment amount does not exceed order total
 
@@ -50,7 +50,7 @@ payments.approved_amount <= orders.total_amount
 
 Scope: PostgreSQL source and Silver current tables.
 
-Failure means a payment approved more money than the order total.
+실패는 승인 결제 금액이 주문 금액을 초과했다는 뜻입니다.
 
 ### cumulative refunds do not exceed approved payment amount
 
@@ -62,7 +62,7 @@ sum(refunds.refund_amount) <= payments.approved_amount
 
 Scope: PostgreSQL source and Silver current tables.
 
-Failure means refund state exceeds the paid amount.
+실패는 누적 환불 금액이 승인 결제 금액을 초과했다는 뜻입니다.
 
 ## Silver Lifecycle Checks
 
@@ -90,29 +90,29 @@ Scope: `silver_orders_current`, `silver_refunds_current`.
 
 ### Source row count vs Silver current row count
 
-For `orders`, `payments`, and `refunds`, the job compares:
+`orders`, `payments`, `refunds`에 대해 다음을 비교합니다.
 
 ```text
 PostgreSQL source row count = Silver current rows where is_deleted = false
 ```
 
-Customers, products, and order items are not included because STEP 8 implemented Silver lifecycle tables only for orders, payments, and refunds.
+Customers, products, order items는 제외합니다. STEP 8에서 Silver lifecycle table을 orders, payments, refunds에 우선 구현했기 때문입니다.
 
 ### Delete event count vs soft-deleted current rows
 
-For `orders`, `payments`, and `refunds`, the job compares:
+`orders`, `payments`, `refunds`에 대해 다음을 비교합니다.
 
 ```text
 Bronze op = 'd' event count = Silver current rows where is_deleted = true
 ```
 
-This validates the downstream soft delete policy.
+Downstream soft delete 정책이 정상 동작하는지 검증합니다.
 
 ## Metadata Checks
 
 ### Duplicate event_id count
 
-Each Bronze CDC table must not contain duplicate `event_id` values.
+각 Bronze CDC 테이블에는 중복 `event_id`가 없어야 합니다.
 
 Scope:
 
@@ -125,23 +125,23 @@ Scope:
 
 ### Quarantine event count
 
-The job reports the number of rows in `silver_quarantine_events`.
+잡은 `silver_quarantine_events` 행 수를 보고합니다.
 
-This metric is informational. A nonzero count may be valid when stale CDC events were intentionally produced, but it should be investigated.
+이 metric은 정보성입니다. stale CDC 이벤트를 의도적으로 만들었다면 0이 아닐 수 있지만, 원인을 확인해야 합니다.
 
 ## Gold Checks
 
-The quality job reports row counts for all Gold marts:
+품질 잡은 모든 Gold mart의 row count를 보고합니다.
 
 - `gold_daily_order_payment_summary`
 - `gold_order_funnel_summary`
 - `gold_payment_failure_summary`
 - `gold_refund_summary`
 
-STEP 10 treats Gold row counts as visibility checks. More detailed KPI reconciliation can be extended from the same script if needed.
+STEP 10은 Gold row count를 가시성 검사로 다룹니다. 더 상세한 KPI reconciliation은 같은 스크립트에서 확장할 수 있습니다.
 
-## Failure Behavior
+## 실패 동작
 
-The job prints each result with `PASS`, `FAIL`, or `INFO`.
+잡은 각 결과를 `PASS`, `FAIL`, `INFO`로 출력합니다.
 
-If any `FAIL` result exists, the process exits with a nonzero status. This makes it suitable for local CI-style execution after Silver and Gold rebuilds.
+`FAIL` 결과가 하나라도 있으면 프로세스는 nonzero status로 종료합니다. 따라서 Silver와 Gold rebuild 이후 로컬 CI 스타일 검증에 사용할 수 있습니다.

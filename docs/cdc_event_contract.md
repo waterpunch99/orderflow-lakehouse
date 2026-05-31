@@ -1,6 +1,6 @@
-# CDC Event Contract
+# CDC 이벤트 계약
 
-This document defines the CDC event contract for Debezium PostgreSQL events consumed from Kafka. STEP 4 configures the connector. STEP 5 defines topic structure, required fields, event identity, and operation handling rules.
+이 문서는 Kafka에서 소비하는 Debezium PostgreSQL CDC 이벤트의 계약을 정의합니다. Connector 설정, topic 구조, 필수 field, event identity, operation 처리 규칙을 함께 다룹니다.
 
 ## Connector
 
@@ -40,9 +40,9 @@ Snapshot mode:
 initial
 ```
 
-The initial snapshot captures existing source rows. Later insert, update, and delete transactions are read from PostgreSQL WAL.
+초기 snapshot은 기존 source row를 캡처합니다. 이후 insert, update, delete transaction은 PostgreSQL WAL에서 읽습니다.
 
-## Included Tables
+## 포함 테이블
 
 - `public.customers`
 - `public.products`
@@ -51,9 +51,9 @@ The initial snapshot captures existing source rows. Later insert, update, and de
 - `public.payments`
 - `public.refunds`
 
-## Expected Topics
+## 예상 Topic
 
-With topic prefix `cdc`, Debezium emits table events to:
+Topic prefix가 `cdc`일 때 Debezium은 테이블 이벤트를 다음 topic으로 발행합니다.
 
 - `cdc.public.customers`
 - `cdc.public.products`
@@ -62,26 +62,26 @@ With topic prefix `cdc`, Debezium emits table events to:
 - `cdc.public.payments`
 - `cdc.public.refunds`
 
-Transaction metadata is enabled and may create a transaction metadata topic such as:
+Transaction metadata가 활성화되어 다음과 같은 topic이 생성될 수 있습니다.
 
 - `cdc.transaction`
 
-## Kafka Record Contract
+## Kafka Record 계약
 
-Spark must read these Kafka fields:
+Spark는 다음 Kafka field를 읽어야 합니다.
 
-| Kafka field | Bronze field | Purpose |
+| Kafka field | Bronze field | 목적 |
 | --- | --- | --- |
 | `topic` | `topic` | Source CDC topic |
-| `partition` | `kafka_partition` | Kafka partition for deterministic record identity |
-| `offset` | `kafka_offset` | Kafka offset for deterministic record identity and tie-break ordering |
+| `partition` | `kafka_partition` | 결정적 record identity용 Kafka partition |
+| `offset` | `kafka_offset` | 결정적 record identity 및 tie-break ordering |
 | `timestamp` | `kafka_timestamp` | Kafka broker record timestamp |
 | `key` | `key_json` | Debezium key JSON |
 | `value` | parsed CDC payload | Debezium value JSON |
 
-## Payload Format
+## Payload 형식
 
-Kafka Connect uses JSON converters with schemas disabled.
+Kafka Connect는 schema disabled JSON converter를 사용합니다.
 
 Key payload:
 
@@ -104,22 +104,22 @@ Value payload shape:
 }
 ```
 
-Exact `before` and `after` fields differ by table.
+정확한 `before`, `after` field는 테이블마다 다릅니다.
 
 ## Debezium Value Fields
 
-| Field | Description | Bronze handling |
+| Field | 설명 | Bronze 처리 |
 | --- | --- | --- |
-| `before` | Row image before update/delete | Store as `before_json` |
-| `after` | Row image after snapshot/insert/update | Store as `after_json` |
-| `source` | Source metadata such as table, tx id, LSN, timestamp | Store as `source_json` and selected typed columns |
-| `op` | Debezium operation code | Store as `op` |
-| `ts_ms` | Debezium event processing timestamp in milliseconds | Convert to `event_ts` |
-| `transaction` | Optional transaction metadata | Preserve when present |
+| `before` | update/delete 이전 row image | `before_json`으로 저장 |
+| `after` | snapshot/insert/update 이후 row image | `after_json`으로 저장 |
+| `source` | table, tx id, LSN, timestamp 등 source metadata | `source_json` 및 주요 typed column으로 저장 |
+| `op` | Debezium operation code | `op`로 저장 |
+| `ts_ms` | Debezium event processing timestamp, millisecond | `event_ts`로 변환 |
+| `transaction` | 선택적 transaction metadata | 존재하면 보존 |
 
-Important `source` fields for PostgreSQL:
+PostgreSQL에서 중요한 `source` field:
 
-| Source field | Target meaning |
+| Source field | 의미 |
 | --- | --- |
 | `schema` | Source schema, expected `public` |
 | `table` | Source table name |
@@ -129,32 +129,32 @@ Important `source` fields for PostgreSQL:
 
 ## Operation Codes
 
-| op | Meaning | Lakehouse handling |
+| op | 의미 | Lakehouse 처리 |
 | --- | --- | --- |
 | `r` | Snapshot read | Bronze append, Silver upsert candidate |
 | `c` | Insert/create | Bronze append, Silver upsert candidate |
-| `u` | Update | Bronze append, Silver current update and history append |
+| `u` | Update | Bronze append, Silver current update 및 history append |
 | `d` | Delete | Bronze append, Silver soft delete |
 
-## Operation Handling
+## Operation 처리
 
 ### `r`
 
-Snapshot read events initialize downstream state. They are insert/upsert candidates in Silver current tables and should be preserved in Bronze.
+Snapshot read 이벤트는 downstream state를 초기화합니다. Silver current table의 insert/upsert candidate이며 Bronze에 보존해야 합니다.
 
 ### `c`
 
-Create events represent source inserts. They are insert/upsert candidates in Silver current tables and history append candidates.
+Create 이벤트는 source insert를 의미합니다. Silver current table의 insert/upsert candidate이며 history append candidate입니다.
 
 ### `u`
 
-Update events represent source row updates. Silver should compare freshness with the current row for the same primary key. Fresh updates modify current state and append history. Stale updates go to quarantine.
+Update 이벤트는 source row update를 의미합니다. Silver는 동일 primary key의 current row와 freshness를 비교합니다. 더 최신 update는 current state를 변경하고 history에 추가합니다. 오래된 update는 quarantine으로 보냅니다.
 
 ### `d`
 
-Delete events represent source physical deletes. Downstream tables must not physically delete rows because this project keeps an auditable Lakehouse. Silver converts delete events to soft delete fields.
+Delete 이벤트는 source physical delete를 의미합니다. 이 프로젝트는 auditable Lakehouse를 유지하므로 downstream table에서 물리 삭제하지 않습니다. Silver는 delete 이벤트를 soft delete field로 변환합니다.
 
-## Delete and Tombstone Policy
+## Delete 및 Tombstone 정책
 
 Connector setting:
 
@@ -162,9 +162,9 @@ Connector setting:
 tombstones.on.delete=false
 ```
 
-Debezium delete events are emitted with `op = d`. Tombstone records are disabled for this project because the downstream Lakehouse does not need Kafka log compaction tombstones in Bronze.
+Debezium delete 이벤트는 `op = d`로 발행됩니다. 이 프로젝트의 downstream Lakehouse는 Bronze에서 Kafka log compaction tombstone을 필요로 하지 않으므로 tombstone record를 비활성화합니다.
 
-Silver and Gold must not physically delete rows because of delete CDC events. Delete events are converted to soft delete fields such as:
+Silver와 Gold는 delete CDC 이벤트 때문에 row를 물리 삭제하면 안 됩니다. Delete 이벤트는 다음과 같은 soft delete field로 변환합니다.
 
 - `is_deleted`
 - `deleted_at`
@@ -178,11 +178,13 @@ Connector setting:
 provide.transaction.metadata=true
 ```
 
-Transaction metadata helps reason about source transaction boundaries. Spark processing should preserve transaction fields in Bronze when present. Silver latest-state logic still uses row-level ordering fields such as source LSN, source transaction id, event timestamp, and Kafka offset.
+Transaction metadata는 source transaction boundary를 해석하는 데 도움이 됩니다. Spark processing은 존재하는 transaction field를 Bronze에 보존해야 합니다. Silver latest-state 로직은 여전히 source LSN, source transaction id, event timestamp, Kafka offset 같은 row-level ordering field를 사용합니다.
 
-## Spark Required Fields
+현재 Silver 구현은 Debezium transaction metadata로 전역 cross-table event order를 만들지 않습니다. Primary key별 최신 상태를 재구성합니다. 향후 `orders`, `payments`, `refunds` 간 transaction-consistent join이 필요하면 transaction metadata topic과 per-event transaction field를 설계에 포함해야 합니다.
 
-Spark should read Kafka metadata and Debezium payload fields needed for later Bronze and Silver processing:
+## Spark 필수 Fields
+
+Spark는 Bronze와 Silver 처리를 위해 다음 Kafka metadata 및 Debezium payload field를 읽어야 합니다.
 
 - Kafka `topic`
 - Kafka `partition`
@@ -196,60 +198,22 @@ Spark should read Kafka metadata and Debezium payload fields needed for later Br
 - Debezium `ts_ms`
 - Debezium `transaction`
 
-Important source metadata from Debezium `source`:
+Debezium `source`에서 중요한 metadata:
 
 - source connector name
 - source database
 - source schema
 - source table
-- source transaction id, mapped from PostgreSQL `source.txId`
-- source LSN, mapped from PostgreSQL `source.lsn`
+- PostgreSQL `source.txId`에서 매핑한 source transaction id
+- PostgreSQL `source.lsn`에서 매핑한 source LSN
 - source timestamp
 
-## Event ID Rule
+## Event ID 규칙
 
-The primary Bronze event id is based on immutable Kafka record coordinates:
+Primary Bronze event id는 변경되지 않는 Kafka record coordinate를 기반으로 합니다.
 
 ```text
 event_id = sha256(topic || ':' || partition || ':' || offset)
 ```
 
-This rule is deterministic for a Kafka record and supports Bronze deduplication.
-
-Spark should also derive a source fingerprint for diagnostics and replay comparison:
-
-```text
-source_event_fingerprint = sha256(source_table || ':' || primary_key_json || ':' || op || ':' || source_lsn || ':' || event_ts)
-```
-
-`event_id` remains the deduplication key for Kafka-ingested Bronze records. The source fingerprint is useful when validating replays where Kafka offsets may differ.
-
-## Table Primary Key Mapping
-
-| Source table | Primary key field |
-| --- | --- |
-| `customers` | `customer_id` |
-| `products` | `product_id` |
-| `orders` | `order_id` |
-| `order_items` | `order_item_id` |
-| `payments` | `payment_id` |
-| `refunds` | `refund_id` |
-
-## Freshness Rule
-
-Silver current tables must compare events for the same primary key using:
-
-- `source_lsn`
-- `source_tx_id`
-- `event_ts`
-- Kafka `offset`
-
-Older events must not overwrite newer current rows. They are routed to quarantine as stale events.
-
-Recommended ordering comparator for a single primary key:
-
-```text
-source_lsn asc, source_tx_id asc, event_ts asc, kafka_offset asc
-```
-
-When an incoming event has a lower freshness tuple than the current Silver row, it is treated as stale.
+이 규칙은 Kafka record에 대해 결정적이며 Bronze deduplication을 지원합니다.
